@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#F8FAFC">
+  <meta name="description" content="AURA-ER — Emergency Response & Hospital Coordination System. Emergency department command dashboard for triage, patient tracking and bed management.">
+  <title>AURA-ER | Emergency Response & Hospital Coordination System</title>
+
+  <!-- Tailwind CDN and the provided project theme -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            aura: {
+              primary: '#2563EB', navy: '#0F172A', teal: '#0D9488', red: '#DC2626',
+              amber: '#F59E0B', green: '#16A34A', bg: '#F8FAFC', card: '#FFFFFF',
+              text: '#0F172A', muted: '#64748B', border: '#E2E8F0', subtle: '#EFF6FF',
+            },
+          },
+          boxShadow: {
+            card: '0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06)',
+            pop: '0 10px 30px -10px rgba(15, 23, 42, 0.25)',
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Fonts & icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Our own styles (separate file) -->
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-aura-bg text-aura-text font-sans antialiased min-h-screen">
+
+  <a href="#mainContent" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[60] btn-primary">Skip to main content</a>
+
+  <!-- MOBILE SIDEBAR OVERLAY -->
+  <div id="sidebarOverlay" class="fixed inset-0 z-40 bg-slate-900/40 hidden lg:hidden" onclick="toggleSidebar(false)" aria-hidden="true"></div>
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-aura-border flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-200" aria-label="Primary">
+    <div class="h-16 px-5 flex items-center gap-3 border-b border-aura-border shrink-0">
+      <div class="w-9 h-9 rounded-lg bg-aura-red flex items-center justify-center text-white" aria-hidden="true">
+        <i class="fa-solid fa-truck-medical text-sm"></i>
+      </div>
+      <div class="min-w-0">
+        <p class="text-[15px] font-bold tracking-tight text-aura-navy leading-tight">AURA<span class="text-aura-red">-ER</span></p>
+        <p class="text-xs text-aura-muted leading-tight">Emergency Operations</p>
+      </div>
+      <button class="lg:hidden ml-auto btn-icon w-8 h-8" onclick="toggleSidebar(false)" aria-label="Close navigation">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+      <div>
+        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Overview</p>
+        <ul class="space-y-1">
+          <li><button type="button" class="nav-item" data-nav="dashboard" onclick="navigate('dashboard')"><i class="fa-solid fa-gauge-high w-4 text-slate-400" aria-hidden="true"></i> Dashboard</button></li>
+        </ul>
+      </div>
+      <div>
+        <p class="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Clinical Operations</p>
+        <ul class="space-y-1">
+          <li><button type="button" class="nav-item" data-nav="patients" onclick="navigate('patients')"><i class="fa-solid fa-users w-4 text-slate-400" aria-hidden="true"></i> Patient Management</button></li>
+          <li>
+            <button type="button" class="nav-item" data-nav="triage" onclick="navigate('triage')">
+              <i class="fa-solid fa-heart-pulse w-4 text-slate-400" aria-hidden="true"></i> Emergency Triage
+              <span id="navCriticalCount" class="ml-auto badge bg-red-50 text-aura-red border-red-200 px-1.5">0</span>
+            </button>
+          </li>
+          <li><button type="button" class="nav-item" data-nav="beds" onclick="navigate('beds')"><i class="fa-solid fa-bed w-4 text-slate-400" aria-hidden="true"></i> Bed Management</button></li>
+          <li><button type="button" class="nav-item" data-nav="departments" onclick="navigate('departments')"><i class="fa-solid fa-hospital w-4 text-slate-400" aria-hidden="true"></i> Departments</button></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- Hospital status -->
+    <div class="px-4 pb-3 shrink-0">
+      <div class="rounded-xl border border-aura-border bg-slate-50 p-3.5">
+        <div class="flex items-center justify-between">
+          <p class="text-xs font-semibold text-aura-navy">Unit Capacity</p>
+          <span id="sidebarOccupancy" class="text-xs font-semibold text-aura-muted tabular-nums">0%</span>
+        </div>
+        <div class="mt-2 h-1.5 w-full rounded-full bg-slate-200 overflow-hidden" role="progressbar" aria-label="Bed occupancy" aria-valuemin="0" aria-valuemax="100" id="sidebarOccupancyBar" aria-valuenow="0">
+          <div id="sidebarOccupancyFill" class="h-full rounded-full bg-aura-primary transition-all" style="width:0%"></div>
+        </div>
+        <p id="sidebarBedSummary" class="mt-2 text-xs text-aura-muted">0 beds available</p>
+        <p class="mt-2 pt-2 border-t border-aura-border text-[11px] text-slate-500 flex items-center gap-1.5">
+          <i class="fa-solid fa-circle-info" aria-hidden="true"></i> Demo data · local session only
+        </p>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div class="px-4 py-3 border-t border-aura-border flex items-center gap-3 shrink-0">
+      <div class="w-9 h-9 rounded-full bg-aura-subtle text-aura-primary flex items-center justify-center text-sm font-semibold" aria-hidden="true">JM</div>
+      <div class="min-w-0">
+        <p class="text-sm font-semibold text-aura-navy truncate">J. Morgan, RN</p>
+        <p class="text-xs text-aura-muted truncate">Charge Nurse · ED</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- APP SHELL -->
+  <div class="lg:pl-64 min-h-screen flex flex-col">
+
+    <!-- TOP HEADER -->
+    <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-aura-border">
+      <div class="h-16 px-4 lg:px-6 flex items-center gap-3">
+        <button class="lg:hidden btn-icon" onclick="toggleSidebar(true)" aria-label="Open navigation" aria-controls="sidebar" id="mobileMenuBtn" aria-expanded="false">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <div class="min-w-0 flex-1">
+          <nav aria-label="Breadcrumb" class="hidden sm:block">
+            <ol class="flex items-center gap-1.5 text-xs text-aura-muted">
+              <li>Emergency Operations</li>
+              <li aria-hidden="true"><i class="fa-solid fa-chevron-right text-[9px]"></i></li>
+              <li id="breadcrumbCurrent" class="text-slate-700 font-medium" aria-current="page">Patient Board</li>
+            </ol>
+          </nav>
+          <p class="text-[15px] sm:text-base font-semibold text-aura-navy truncate leading-tight">Metropolitan General Hospital <span class="hidden md:inline text-aura-muted font-normal">· Level 1 Trauma Center</span></p>
+        </div>
+
+        <div class="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-full bg-green-50 border border-green-200 text-xs font-medium text-green-700" title="Application status">
+          <span class="w-1.5 h-1.5 rounded-full bg-aura-green" aria-hidden="true"></span> System operational
+        </div>
+
+        <div class="hidden sm:flex flex-col items-end leading-tight px-3 border-l border-aura-border">
+          <span id="currentTime" class="font-mono text-sm font-semibold text-aura-navy tabular-nums">00:00:00</span>
+          <span id="currentDate" class="text-[11px] text-aura-muted">Loading date…</span>
+        </div>
+
+        <!-- Notifications -->
+        <div class="relative">
+          <button id="notifBtn" class="btn-icon relative" onclick="toggleNotifications()" aria-haspopup="true" aria-expanded="false" aria-controls="notifPanel" aria-label="Critical alerts">
+            <i class="fa-regular fa-bell"></i>
+            <span id="notifCount" class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-aura-red text-white text-[10px] font-bold flex items-center justify-center">0</span>
+          </button>
+          <div id="notifPanel" class="hidden absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] card shadow-pop overflow-hidden" role="region" aria-label="Critical alerts list">
+            <div class="px-4 py-3 border-b border-aura-border flex items-center justify-between">
+              <p class="text-sm font-semibold text-aura-navy">Critical patients</p>
+              <span class="text-xs text-aura-muted">ESI 1 · active</span>
+            </div>
+            <ul id="notifList" class="max-h-72 overflow-y-auto divide-y divide-aura-border"></ul>
+          </div>
+        </div>
+
+        <button onclick="openIntakeModal()" class="btn-primary">
+          <i class="fa-solid fa-plus" aria-hidden="true"></i>
+          <span class="hidden sm:inline">New Intake</span>
+          <span class="sm:hidden sr-only">New Intake</span>
+        </button>
+      </div>
+
+      <!-- EMERGENCY ALERT STRIP -->
+      <div class="ticker-wrap h-9 px-4 lg:px-6 flex items-center gap-3 bg-red-50 border-t border-red-100 text-[13px]" id="tickerWrap">
+        <span class="shrink-0 inline-flex items-center gap-1.5 rounded-md bg-aura-red text-white text-[11px] font-semibold uppercase tracking-wide px-2 py-0.5">
+          <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Priority feed
+        </span>
+        <div class="flex-1 overflow-hidden" aria-live="polite">
+          <div id="alertTicker" class="ticker-track text-red-900">[13:42] INCOMING AMBULANCE: ETA 4 MINS - 58M CHEST PAIN WITH ST ELEVATION -> RESUS BAY 01 RESERVED • [13:35] CODE RED TRAUMA BAY 2 ACTIVE • [13:10] BLOOD BANK O-NEG SUPPLY NORMAL • [12:55] RADIOLOGY CT SCANNER 01 ONLINE</div>
+        </div>
+        <button id="tickerToggle" onclick="toggleTicker()" class="shrink-0 w-7 h-7 rounded-md text-red-800 hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-aura-red" aria-label="Pause alert feed" aria-pressed="false">
+          <i class="fa-solid fa-pause text-xs"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- MAIN -->
+    <main id="mainContent" class="flex-1 w-full max-w-[1440px] mx-auto px-4 lg:px-6 py-6 space-y-6" tabindex="-1">
+
+      <!-- PAGE HEADING -->
+      <div id="dashboardTop" class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 scroll-mt-32">
+        <div>
+          <h1 class="text-2xl lg:text-[28px] font-semibold tracking-tight text-aura-navy">Emergency Department Overview</h1>
+          <p class="text-sm text-aura-muted mt-1">Coordinate triage, patient flow and bed capacity across all emergency units.</p>
+        </div>
+      </div>
+
+      <!-- METRICS -->
+      <section aria-label="Key metrics" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4">
+        <div class="card p-4 flex flex-col justify-between min-h-[118px] hover:border-slate-300 transition-colors">
+          <div class="flex items-start justify-between gap-2">
+            <span class="metric-label">Active Emergency Patients</span>
+            <span class="w-8 h-8 rounded-lg bg-aura-subtle text-aura-primary flex items-center justify-center shrink-0" aria-hidden="true"><i class="fa-solid fa-users text-sm"></i></span>
+          </div>
+          <div class="mt-3">
+            <span id="metricTotalPatients" class="metric-value">0</span>
+            <p class="text-xs text-aura-muted mt-1.5">Excludes discharged</p>
+          </div>
+        </div>
+
+        <div class="card p-4 flex flex-col justify-between min-h-[118px] border-red-200 hover:border-red-300 transition-colors">
+          <div class="flex items-start justify-between gap-2">
+            <span class="metric-label">Critical Patients</span>
+            <span class="w-8 h-8 rounded-lg bg-red-50 text-aura-red flex items-center justify-center shrink-0" aria-hidden="true"><i class="fa-solid fa-heart-pulse text-sm"></i></span>
+          </div>
+          <div class="mt-3">
+            <span id="metricRedCount" class="metric-value text-aura-red">0</span>
+            <p class="text-xs text-aura-red/80 mt-1.5 font-medium">ESI 1 · Immediate</p>
+          </div>
+        </div>
+
+        <div class="card p-4 flex flex-col justify-between min-h-[118px] hover:border-slate-300 transition-colors">
+          <div class="flex items-start justify-between gap-2">
+            <span class="metric-label">Bed Occupancy</span>
+            <span class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center shrink-0" aria-hidden="true"><i class="fa-solid fa-chart-pie text-sm"></i></span>
+          </div>
+          <div class="mt-3">
+            <span id="metricOccupancyRate" class="metric-value">0%</span>
+            <p id="metricBedStats" class="text-xs text-aura-muted mt-1.5">0 of 0 occupied</p>
+          </div>
+        </div>
+
+        <div class="card p-4 flex flex-col justify-between min-h-[118px] hover:border-slate-300 transition-colors">
+          <div class="flex items-start justify-between gap-2">
+            <span class="metric-label">Available Beds</span>
+            <span class="w-8 h-8 rounded-lg bg-teal-50 text-aura-teal flex items-center justify-center shrink-0" aria-hidden="true"><i class="fa-solid fa-bed text-sm"></i></span>
+          </div>
+          <div class="mt-3">
+            <span id="metricAvailableBeds" class="metric-value text-aura-teal">0</span>
+            <p class="text-xs text-aura-muted mt-1.5"><span id="metricResusAvailable">0 Avail</span> in trauma</p>
+          </div>
+        </div>
+
+        <div class="card p-4 flex flex-col justify-between min-h-[118px] hover:border-slate-300 transition-colors">
+          <div class="flex items-start justify-between gap-2">
+            <span class="metric-label">Doctors On Duty</span>
+            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0" aria-hidden="true"><i class="fa-solid fa-user-doctor text-sm"></i></span>
+          </div>
+          <div class="mt-3">
+            <span id="metricDoctors" class="metric-value">0</span>
+            <p id="metricAttending" class="text-xs text-aura-muted mt-1.5">0 attending · demo roster</p>
+          </div>
+        </div>
+
+        <div class="card p-4 flex flex-col justify-between min-h-[118px] hover:border-slate-300 transition-colors">
+          <div class="flex items-start justify-between gap-2">
+            <span class="metric-label">Average Triage Wait</span>
+            <span class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0" aria-hidden="true"><i class="fa-regular fa-clock text-sm"></i></span>
+          </div>
+          <div class="mt-3">
+            <span id="metricTriageWait" class="metric-value text-slate-400" title="Wait-time timestamps are not recorded in this application">—</span>
+            <p id="metricAwaitingTriage" class="text-xs text-aura-muted mt-1.5">0 awaiting triage</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEPARTMENT CAPACITY -->
+      <section id="departmentOverview" aria-labelledby="deptHeading" class="scroll-mt-32">
+        <div class="flex items-center justify-between mb-3">
+          <h2 id="deptHeading" class="text-base font-semibold text-aura-navy">Department Capacity</h2>
+          <span class="text-xs text-aura-muted">Available / total beds</span>
+        </div>
+        <div id="departmentSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3"></div>
+      </section>
+
+      <!-- VIEW SWITCHER -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="inline-flex items-center p-1 rounded-lg bg-slate-100 border border-aura-border self-start" role="tablist" aria-label="Board view">
+          <button id="tabPatientsBtn" role="tab" aria-selected="true" aria-controls="patientViewSection" onclick="switchView('patients')" class="px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors bg-white text-aura-navy shadow-card">
+            <i class="fa-solid fa-list-check mr-1.5" aria-hidden="true"></i> Patient Board
+          </button>
+          <button id="tabBedsBtn" role="tab" aria-selected="false" aria-controls="bedViewSection" onclick="switchView('beds')" class="px-3.5 py-1.5 rounded-md text-[13px] font-medium transition-colors text-aura-muted hover:text-aura-navy">
+            <i class="fa-solid fa-bed mr-1.5" aria-hidden="true"></i> Bed Matrix
+          </button>
+        </div>
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-aura-muted" aria-label="Triage legend">
+          <span class="inline-flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation text-aura-red" aria-hidden="true"></i> Critical (ESI 1)</span>
+          <span class="inline-flex items-center gap-1.5"><i class="fa-solid fa-circle-exclamation text-amber-500" aria-hidden="true"></i> Urgent (ESI 2)</span>
+          <span class="inline-flex items-center gap-1.5"><i class="fa-solid fa-circle-check text-aura-green" aria-hidden="true"></i> Stable (ESI 3)</span>
+        </div>
+      </div>
+
+      <!-- PATIENT VIEW -->
+      <section id="patientViewSection" role="tabpanel" aria-labelledby="tabPatientsBtn" class="card overflow-hidden scroll-mt-32">
+        <div class="px-4 lg:px-5 pt-4 pb-3 flex flex-wrap items-center justify-between gap-2 border-b border-aura-border">
+          <div class="flex items-center gap-2.5">
+            <h2 class="text-base font-semibold text-aura-navy">Patient Management</h2>
+            <span id="filteredCountBadge" class="badge bg-slate-100 text-slate-600 border-aura-border font-medium">0 Shown</span>
+          </div>
+          <p class="text-xs text-aura-muted">Sorted by most recent intake</p>
+        </div>
+
+        <!-- Filters -->
+        <div class="px-4 lg:px-5 py-3 flex flex-col lg:flex-row gap-2.5 bg-slate-50/60 border-b border-aura-border">
+          <div class="relative flex-1 min-w-0">
+            <label for="searchInput" class="sr-only">Search patients</label>
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" aria-hidden="true"></i>
+            <input type="search" id="searchInput" oninput="applyFilters()" placeholder="Search by name, MRN or chief complaint…" class="field pl-9">
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 lg:flex gap-2.5">
+            <div>
+              <label for="triageFilter" class="sr-only">Filter by triage priority</label>
+              <select id="triageFilter" onchange="applyFilters()" class="field lg:w-44">
+                <option value="ALL">All triage levels</option>
+                <option value="RED">Critical · ESI 1</option>
+                <option value="YELLOW">Urgent · ESI 2</option>
+                <option value="GREEN">Stable · ESI 3</option>
+              </select>
+            </div>
+            <div>
+              <label for="departmentFilter" class="sr-only">Filter by department</label>
+              <select id="departmentFilter" onchange="applyFilters()" class="field lg:w-48">
+                <option value="ALL">All departments</option>
+                <option value="Trauma">Trauma & Resuscitation</option>
+                <option value="Cardiology">Cardiology</option>
+                <option value="Neurology">Neurology & Stroke</option>
+                <option value="Pediatric">Pediatric Emergency</option>
+                <option value="General">General Emergency</option>
+              </select>
+            </div>
+            <div>
+              <label for="statusFilter" class="sr-only">Filter by status</label>
+              <select id="statusFilter" onchange="applyFilters()" class="field lg:w-44">
+                <option value="ALL">All statuses</option>
+                <option value="Triage">Triage</option>
+                <option value="Bed Allocated">Bed Allocated</option>
+                <option value="In Treatment">In Treatment</option>
+                <option value="Lab / Scan">Lab / Diagnostics</option>
+                <option value="Discharged">Discharged</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" id="resetFiltersBtn" onclick="resetFilters()" class="btn-ghost shrink-0">
+            <i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Clear
+          </button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[1080px] text-[13px] border-collapse">
+            <caption class="sr-only">Emergency patients with triage priority, clinical summary, location and status</caption>
+            <thead class="bg-slate-50 border-b border-aura-border">
+              <tr>
+                <th scope="col" class="th">Priority</th>
+                <th scope="col" class="th">Patient</th>
+                <th scope="col" class="th">Chief Complaint & Vitals</th>
+                <th scope="col" class="th">Department & Bed</th>
+                <th scope="col" class="th">Arrival</th>
+                <th scope="col" class="th">Status</th>
+                <th scope="col" class="th text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="patientsTableBody" class="divide-y divide-aura-border text-slate-700"></tbody>
+          </table>
+        </div>
+
+        <div id="emptyPatientState" class="hidden py-16 px-4 text-center">
+          <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-3" aria-hidden="true">
+            <i class="fa-solid fa-user-slash"></i>
+          </div>
+          <p class="text-sm font-semibold text-aura-navy">No patients match these filters</p>
+          <p class="text-[13px] text-aura-muted mt-1">Try a different search term or clear the filters.</p>
+          <button onclick="resetFilters()" class="btn-secondary mt-4">Reset filters</button>
+        </div>
+      </section>
+
+      <!-- BED VIEW -->
+      <section id="bedViewSection" role="tabpanel" aria-labelledby="tabBedsBtn" class="hidden space-y-4 scroll-mt-32">
+        <div class="card px-4 lg:px-5 py-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 class="text-base font-semibold text-aura-navy">Bed Management</h2>
+            <p class="text-[13px] text-aura-muted mt-0.5">Assign, sanitize and release beds. Changes update patient records and metrics instantly.</p>
+          </div>
+          <ul class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-600" aria-label="Bed status legend">
+            <li class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-aura-teal" aria-hidden="true"></span> Available</li>
+            <li class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-aura-red" aria-hidden="true"></span> Occupied</li>
+            <li class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-aura-amber" aria-hidden="true"></span> Sanitizing</li>
+            <li class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-aura-primary" aria-hidden="true"></span> Reserved</li>
+          </ul>
+        </div>
+        <div id="bedMatrixContainer" class="space-y-4"></div>
+      </section>
+
+      <p class="text-xs text-slate-500 text-center pb-2">AURA-ER is an operational coordination interface using demonstration data. It does not provide clinical decision support.</p>
+    </main>
+  </div>
+
+  <!-- INTAKE MODAL -->
+  <div id="intakeModal" class="modal fixed inset-0 z-[55] bg-slate-900/50 hidden items-start sm:items-center justify-center p-0 sm:p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="intakeTitle" aria-describedby="intakeDesc" onclick="if(event.target===this) closeIntakeModal()">
+    <div class="modal-panel bg-white w-full sm:max-w-3xl sm:rounded-2xl shadow-pop sm:my-6 min-h-screen sm:min-h-0 flex flex-col">
+      <div class="px-5 sm:px-6 py-4 border-b border-aura-border flex items-start justify-between gap-4 sticky top-0 bg-white sm:rounded-t-2xl z-10">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-lg bg-aura-subtle text-aura-primary flex items-center justify-center shrink-0" aria-hidden="true">
+            <i class="fa-solid fa-id-card-clip"></i>
+          </div>
+          <div>
+            <h2 id="intakeTitle" class="text-lg font-semibold text-aura-navy">Emergency Intake & Triage Registration</h2>
+            <p id="intakeDesc" class="text-[13px] text-aura-muted">Fields marked <span class="text-aura-red">*</span> are required.</p>
+          </div>
+        </div>
+        <button onclick="closeIntakeModal()" class="btn-icon shrink-0" aria-label="Close intake form">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="intakeForm" onsubmit="handlePatientIntake(event)" novalidate class="flex-1 flex flex-col">
+        <div class="px-5 sm:px-6 py-5 space-y-6">
+
+          <!-- 1. Patient Information -->
+          <fieldset>
+            <legend class="flex items-center gap-2 text-sm font-semibold text-aura-navy mb-3">
+              <span class="w-5 h-5 rounded-full bg-aura-subtle text-aura-primary text-[11px] font-bold flex items-center justify-center">1</span> Patient Information
+            </legend>
+            <div class="grid grid-cols-1 sm:grid-cols-6 gap-3">
+              <div class="sm:col-span-4">
+                <label for="intakeName" class="field-label">Full name <span class="text-aura-red" aria-hidden="true">*</span></label>
+                <input type="text" id="intakeName" required aria-required="true" aria-describedby="err-intakeName" autocomplete="off" placeholder="e.g. Johnathan Doe" class="field">
+                <p id="err-intakeName" class="field-error hidden"></p>
+              </div>
+              <div class="sm:col-span-1">
+                <label for="intakeAge" class="field-label">Age <span class="text-aura-red" aria-hidden="true">*</span></label>
+                <input type="number" id="intakeAge" required aria-required="true" aria-describedby="err-intakeAge" min="0" max="120" inputmode="numeric" placeholder="Years" class="field">
+                <p id="err-intakeAge" class="field-error hidden"></p>
+              </div>
+              <div class="sm:col-span-1">
+                <label for="intakeGender" class="field-label">Gender</label>
+                <select id="intakeGender" class="field">
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- 2. Emergency Assessment -->
+          <fieldset>
+            <legend class="flex items-center gap-2 text-sm font-semibold text-aura-navy mb-3">
+              <span class="w-5 h-5 rounded-full bg-aura-subtle text-aura-primary text-[11px] font-bold flex items-center justify-center">2</span> Emergency Assessment
+            </legend>
+            <div role="radiogroup" aria-label="Emergency Severity Index triage level" class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4">
+              <label class="cursor-pointer">
+                <input type="radio" name="triageLevel" value="RED" class="peer sr-only" required>
+                <div class="h-full rounded-xl border-2 border-aura-border bg-white p-3.5 transition-colors hover:border-slate-300 peer-checked:border-aura-red peer-checked:bg-red-50 peer-focus-visible:ring-2 peer-focus-visible:ring-aura-red peer-focus-visible:ring-offset-2">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation text-aura-red" aria-hidden="true"></i>
+                    <span class="text-sm font-semibold text-aura-navy">Critical</span>
+                    <span class="ml-auto text-[11px] font-semibold text-aura-red">ESI 1</span>
+                  </div>
+                  <p class="text-xs text-aura-muted mt-1">Immediate life threat · Resuscitation</p>
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="triageLevel" value="YELLOW" class="peer sr-only" checked>
+                <div class="h-full rounded-xl border-2 border-aura-border bg-white p-3.5 transition-colors hover:border-slate-300 peer-checked:border-aura-amber peer-checked:bg-amber-50 peer-focus-visible:ring-2 peer-focus-visible:ring-aura-amber peer-focus-visible:ring-offset-2">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-exclamation text-amber-500" aria-hidden="true"></i>
+                    <span class="text-sm font-semibold text-aura-navy">Urgent</span>
+                    <span class="ml-auto text-[11px] font-semibold text-amber-700">ESI 2</span>
+                  </div>
+                  <p class="text-xs text-aura-muted mt-1">High risk · Potentially unstable</p>
+                </div>
+              </label>
+              <label class="cursor-pointer">
+                <input type="radio" name="triageLevel" value="GREEN" class="peer sr-only">
+                <div class="h-full rounded-xl border-2 border-aura-border bg-white p-3.5 transition-colors hover:border-slate-300 peer-checked:border-aura-green peer-checked:bg-green-50 peer-focus-visible:ring-2 peer-focus-visible:ring-aura-green peer-focus-visible:ring-offset-2">
+                  <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-check text-aura-green" aria-hidden="true"></i>
+                    <span class="text-sm font-semibold text-aura-navy">Stable</span>
+                    <span class="ml-auto text-[11px] font-semibold text-green-700">ESI 3</span>
+                  </div>
+                  <p class="text-xs text-aura-muted mt-1">Stable · Non-urgent</p>
+                </div>
+              </label>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div class="sm:col-span-2">
+                <label for="intakeComplaint" class="field-label">Chief complaint / symptoms <span class="text-aura-red" aria-hidden="true">*</span></label>
+                <input type="text" id="intakeComplaint" required aria-required="true" aria-describedby="err-intakeComplaint" placeholder="e.g. Acute chest pain radiating to left jaw, diaphoresis" class="field">
+                <p id="err-intakeComplaint" class="field-error hidden"></p>
+              </div>
+              <div>
+                <label for="intakeArrivalMode" class="field-label">Arrival method</label>
+                <select id="intakeArrivalMode" class="field">
+                  <option value="Ambulance (EMS)">Ambulance (EMS)</option>
+                  <option value="Walk-in">Walk-in</option>
+                  <option value="Hospital Transfer">Hospital Transfer</option>
+                  <option value="Helicopter Medevac">Helicopter Medevac</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- 3. Vital Signs -->
+          <fieldset>
+            <legend class="flex items-center gap-2 text-sm font-semibold text-aura-navy mb-1">
+              <span class="w-5 h-5 rounded-full bg-aura-subtle text-aura-primary text-[11px] font-bold flex items-center justify-center">3</span> Vital Signs
+            </legend>
+            <p class="text-xs text-aura-muted mb-3">Optional. Leave blank if not yet measured — values will display as “--”.</p>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label for="intakeBP" class="field-label">Blood pressure <span class="text-aura-muted font-normal">(mmHg)</span></label>
+                <input type="text" id="intakeBP" placeholder="120/80" aria-describedby="err-intakeBP" class="field font-mono">
+                <p id="err-intakeBP" class="field-error hidden"></p>
+              </div>
+              <div>
+                <label for="intakeHR" class="field-label">Heart rate <span class="text-aura-muted font-normal">(bpm)</span></label>
+                <input type="number" id="intakeHR" placeholder="78" min="20" max="300" inputmode="numeric" aria-describedby="err-intakeHR" class="field font-mono">
+                <p id="err-intakeHR" class="field-error hidden"></p>
+              </div>
+              <div>
+                <label for="intakeSPO2" class="field-label">SpO₂ <span class="text-aura-muted font-normal">(%)</span></label>
+                <input type="number" id="intakeSPO2" placeholder="98" min="50" max="100" inputmode="numeric" aria-describedby="err-intakeSPO2" class="field font-mono">
+                <p id="err-intakeSPO2" class="field-error hidden"></p>
+              </div>
+              <div>
+                <label for="intakeTemp" class="field-label">Temperature <span class="text-aura-muted font-normal">(°F)</span></label>
+                <input type="text" id="intakeTemp" placeholder="98.6" inputmode="decimal" aria-describedby="err-intakeTemp" class="field font-mono">
+                <p id="err-intakeTemp" class="field-error hidden"></p>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- 4. Department & Bed -->
+          <fieldset>
+            <legend class="flex items-center gap-2 text-sm font-semibold text-aura-navy mb-3">
+              <span class="w-5 h-5 rounded-full bg-aura-subtle text-aura-primary text-[11px] font-bold flex items-center justify-center">4</span> Department & Bed Allocation
+            </legend>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label for="intakeDept" class="field-label">Target department <span class="text-aura-red" aria-hidden="true">*</span></label>
+                <select id="intakeDept" onchange="populateBedOptions()" required aria-required="true" class="field">
+                  <option value="Trauma">Trauma & Resuscitation</option>
+                  <option value="Cardiology">Cardiology</option>
+                  <option value="Neurology">Neurology & Stroke</option>
+                  <option value="Pediatric">Pediatric Emergency</option>
+                  <option value="General">General Emergency</option>
+                </select>
+              </div>
+              <div>
+                <label for="intakeBedSelect" class="field-label">Available bed</label>
+                <select id="intakeBedSelect" class="field" aria-describedby="intakeBedHint"></select>
+                <p id="intakeBedHint" class="mt-1 text-xs text-aura-muted">Only beds currently marked Available are listed.</p>
+              </div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="mt-auto px-5 sm:px-6 py-4 border-t border-aura-border bg-slate-50 sm:rounded-b-2xl flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 sticky bottom-0">
+          <button type="button" onclick="closeIntakeModal()" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">
+            <i class="fa-solid fa-check" aria-hidden="true"></i> Complete Admission
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PATIENT DETAIL MODAL -->
+  <div id="patientDetailModal" class="modal fixed inset-0 z-[55] bg-slate-900/50 hidden items-start sm:items-center justify-center p-0 sm:p-4 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="detailPatientName" onclick="if(event.target===this) closeDetailModal()">
+    <div class="modal-panel bg-white w-full sm:max-w-xl sm:rounded-2xl shadow-pop sm:my-6 min-h-screen sm:min-h-0 flex flex-col">
+      <div id="detailModalHeader" class="px-5 sm:px-6 py-4 border-b border-aura-border flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2 mb-1.5">
+            <span id="detailTriageBadge" class="badge">--</span>
+            <span id="detailStatus" class="badge">--</span>
+          </div>
+          <h2 id="detailPatientName" class="text-lg font-semibold text-aura-navy truncate">Patient Name</h2>
+          <p id="detailMRN" class="font-mono text-xs text-aura-muted">MRN-00000</p>
+        </div>
+        <button onclick="closeDetailModal()" class="btn-icon shrink-0" aria-label="Close patient details">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="px-5 sm:px-6 py-5 space-y-5 flex-1">
+        <section aria-labelledby="vitalsHeading">
+          <h3 id="vitalsHeading" class="text-xs font-semibold uppercase tracking-wide text-aura-muted mb-2">Recorded Vital Signs</h3>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="rounded-xl border border-aura-border p-3">
+              <p class="text-xs text-aura-muted flex items-center gap-1.5"><i class="fa-solid fa-droplet text-aura-primary" aria-hidden="true"></i> Blood pressure</p>
+              <p id="detailBP" class="mt-1 font-mono text-base font-semibold text-aura-navy">--</p>
+            </div>
+            <div class="rounded-xl border border-aura-border p-3">
+              <p class="text-xs text-aura-muted flex items-center gap-1.5"><i class="fa-solid fa-heart-pulse text-aura-red" aria-hidden="true"></i> Heart rate</p>
+              <p id="detailHR" class="mt-1 font-mono text-base font-semibold text-aura-navy">--</p>
+            </div>
+            <div class="rounded-xl border border-aura-border p-3">
+              <p class="text-xs text-aura-muted flex items-center gap-1.5"><i class="fa-solid fa-lungs text-aura-teal" aria-hidden="true"></i> SpO₂</p>
+              <p id="detailSPO2" class="mt-1 font-mono text-base font-semibold text-aura-navy">--</p>
+            </div>
+            <div class="rounded-xl border border-aura-border p-3">
+              <p class="text-xs text-aura-muted flex items-center gap-1.5"><i class="fa-solid fa-temperature-half text-amber-500" aria-hidden="true"></i> Temperature</p>
+              <p id="detailTemp" class="mt-1 font-mono text-base font-semibold text-aura-navy">--</p>
+            </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="clinicalHeading" class="rounded-xl border border-aura-border">
+          <h3 id="clinicalHeading" class="sr-only">Clinical summary</h3>
+          <div class="p-4 border-b border-aura-border">
+            <p class="text-xs text-aura-muted">Chief complaint</p>
+            <p id="detailComplaint" class="text-sm font-medium text-aura-navy mt-0.5">--</p>
+          </div>
+          <dl class="grid grid-cols-2 gap-x-4 gap-y-3 p-4 text-sm">
+            <div><dt class="text-xs text-aura-muted">Department</dt><dd id="detailDepartment" class="font-medium text-aura-navy">--</dd></div>
+            <div><dt class="text-xs text-aura-muted">Bed location</dt><dd id="detailBed" class="font-mono font-semibold text-aura-primary">--</dd></div>
+            <div><dt class="text-xs text-aura-muted">Arrival method</dt><dd id="detailArrival" class="text-aura-navy">--</dd></div>
+            <div><dt class="text-xs text-aura-muted">Admission time</dt><dd id="detailTime" class="font-mono text-aura-navy">--</dd></div>
+          </dl>
+        </section>
+
+        <section aria-labelledby="transferHeading" class="rounded-xl bg-slate-50 border border-aura-border p-4">
+          <h3 id="transferHeading" class="text-sm font-semibold text-aura-navy">Assign or transfer bed</h3>
+          <p class="text-xs text-aura-muted mt-0.5 mb-2.5">The previous bed (if any) is moved to the sanitization queue.</p>
+          <div class="flex flex-col sm:flex-row gap-2">
+            <label for="transferBedSelect" class="sr-only">Destination bed</label>
+            <select id="transferBedSelect" class="field flex-1"></select>
+            <button id="transferBtn" onclick="executeBedTransfer()" class="btn-primary shrink-0">
+              <i class="fa-solid fa-right-left" aria-hidden="true"></i> Transfer
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div class="px-5 sm:px-6 py-4 border-t border-aura-border bg-slate-50 sm:rounded-b-2xl flex flex-col-reverse sm:flex-row sm:justify-between gap-2">
+        <button id="detailDischargeBtn" onclick="dischargeFromDetail()" class="btn-danger">
+          <i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i> Discharge patient
+        </button>
+        <button onclick="closeDetailModal()" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOASTS -->
+  <div id="toastContainer" class="fixed bottom-4 right-4 left-4 sm:left-auto z-[60] flex flex-col gap-2 sm:w-96 pointer-events-none" aria-live="polite" aria-atomic="false"></div>
+
+  <!-- App logic (separate file) -->
+  <script src="script.js"></script>
+</body>
+</html>
